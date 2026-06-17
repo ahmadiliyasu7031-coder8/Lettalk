@@ -1,0 +1,41 @@
+workflows:
+  lettalk-android-release:
+    name: Lettalk - Android Release APK
+    max_build_duration: 30
+    instance_type: linux_x2
+    environment:
+      flutter: stable
+      # No signing setup needed for this first build — Flutter's default
+      # generated project signs "release" builds with the debug keystore
+      # unless you configure a real one, which is fine for installing on
+      # your own phone to test. Only add a real keystore + signing group
+      # here once you're ready to publish to the Play Store.
+    scripts:
+      - name: Scaffold missing Android platform files (gradle, MainActivity, etc.)
+        script: |
+          # The source tree as delivered intentionally ships only a hand-written
+          # AndroidManifest.xml — everything else under android/ (Gradle files,
+          # MainActivity, gradle wrapper) needs to come from the Flutter SDK
+          # actually running on this build machine, not hand-typed offline.
+          cp android/app/src/main/AndroidManifest.xml /tmp/LettalkManifest.xml
+          flutter create --platforms=android --org com.ahmerdee --project-name lettalk .
+          cp /tmp/LettalkManifest.xml android/app/src/main/AndroidManifest.xml
+
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+
+      - name: Build release APK
+        script: |
+          flutter build apk --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+
+    publishing:
+      email:
+        recipients:
+          - you@example.com # replace with your email to get notified + the APK link
+        notify:
+          success: true
+          failure: true
