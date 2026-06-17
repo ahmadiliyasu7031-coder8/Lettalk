@@ -23,7 +23,7 @@ dependencies:
   flutter_blue_plus: ^1.31.15
   # Bluetooth LE — peripheral role (advertise + GATT server), since
   # flutter_blue_plus does not support peripheral mode
-  bluetooth_low_energy: ^4.2.0
+  bluetooth_low_energy: ^6.2.1
 
   # Cryptography: X25519 key exchange + AES-256-GCM
   cryptography: ^2.7.0
