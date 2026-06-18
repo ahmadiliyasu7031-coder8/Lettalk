@@ -43,23 +43,19 @@ workflows:
           if [ -f android/build.gradle.kts ]; then
           cat >> android/build.gradle.kts << 'EOF'
           subprojects {
-          afterEvaluate {
           extensions.findByName("android")?.let { ext ->
           if (ext is com.android.build.gradle.BaseExtension) {
           ext.compileSdkVersion(36)
           }
           }
           }
-          }
           EOF
           elif [ -f android/build.gradle ]; then
           cat >> android/build.gradle << 'EOF'
-          subprojects {
-          afterEvaluate { proj ->
+          subprojects { proj ->
           if (proj.hasProperty('android')) {
           proj.android {
           compileSdkVersion 36
-          }
           }
           }
           }
@@ -83,4 +79,4 @@ workflows:
           - you@example.com
         notify:
           success: true
-          failure: true 
+          failure: true
