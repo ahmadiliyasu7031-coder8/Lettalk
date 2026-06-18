@@ -63,7 +63,7 @@ class NetworkDetailsScreen extends ConsumerWidget {
                         maxY: 100,
                         gridData: const FlGridData(show: false),
                         borderData: FlBorderData(show: false),
-                        titlesData: const FlTitlesData(
+                        titlesData: FlTitlesData(
                           topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                           rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                           bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
