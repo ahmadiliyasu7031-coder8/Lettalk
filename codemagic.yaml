@@ -2,7 +2,7 @@ workflows:
   lettalk-android-release:
     name: Lettalk - Android Release APK
     max_build_duration: 30
-    instance_type: mac_mini_m2 # free tier minutes (500/month on personal accounts) only apply to this machine type — linux_x2 requires billing enabled, even though this app only targets Android
+    instance_type: mac_mini_m2
     environment:
       flutter: stable
     scripts:
@@ -40,6 +40,32 @@ workflows:
           EOF
           fi
 
+          if [ -f android/build.gradle.kts ]; then
+          cat >> android/build.gradle.kts << 'EOF'
+          subprojects {
+          afterEvaluate {
+          extensions.findByName("android")?.let { ext ->
+          if (ext is com.android.build.gradle.BaseExtension) {
+          ext.compileSdkVersion(36)
+          }
+          }
+          }
+          }
+          EOF
+          elif [ -f android/build.gradle ]; then
+          cat >> android/build.gradle << 'EOF'
+          subprojects {
+          afterEvaluate { proj ->
+          if (proj.hasProperty('android')) {
+          proj.android {
+          compileSdkVersion 36
+          }
+          }
+          }
+          }
+          EOF
+          fi
+
       - name: Get Flutter packages
         script: |
           flutter pub get
@@ -57,4 +83,4 @@ workflows:
           - you@example.com
         notify:
           success: true
-          failure: true
+          failure: true 
