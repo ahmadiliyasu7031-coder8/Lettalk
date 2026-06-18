@@ -15,6 +15,9 @@ workflows:
           if [ -f android/app/build.gradle.kts ]; then
           cat >> android/app/build.gradle.kts << 'EOF'
           android {
+          defaultConfig {
+          minSdk = 23
+          }
           compileOptions {
           isCoreLibraryDesugaringEnabled = true
           sourceCompatibility = JavaVersion.VERSION_17
@@ -28,6 +31,9 @@ workflows:
           elif [ -f android/app/build.gradle ]; then
           cat >> android/app/build.gradle << 'EOF'
           android {
+          defaultConfig {
+          minSdkVersion 23
+          }
           compileOptions {
           coreLibraryDesugaringEnabled true
           sourceCompatibility JavaVersion.VERSION_17
@@ -36,28 +42,6 @@ workflows:
           }
           dependencies {
           coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
-          }
-          EOF
-          fi
-
-          if [ -f android/build.gradle.kts ]; then
-          cat >> android/build.gradle.kts << 'EOF'
-          subprojects {
-          extensions.findByName("android")?.let { ext ->
-          if (ext is com.android.build.gradle.BaseExtension) {
-          ext.compileSdkVersion(36)
-          }
-          }
-          }
-          EOF
-          elif [ -f android/build.gradle ]; then
-          cat >> android/build.gradle << 'EOF'
-          subprojects { proj ->
-          if (proj.hasProperty('android')) {
-          proj.android {
-          compileSdkVersion 36
-          }
-          }
           }
           EOF
           fi
