@@ -5,18 +5,6 @@ import 'package:bluetooth_low_energy/bluetooth_low_energy.dart';
 
 import '../core/constants.dart';
 
-/// Peripheral role: advertises the Lettalk service UUID so nearby
-/// devices can discover this one, and runs a minimal GATT server that
-/// accepts a chunked write (incoming relay table / payload) and replies
-/// via notify (outgoing relay table / payload).
-///
-/// See the note in ble_transport.dart — this is the most
-/// platform-fragile part of the app. In particular:
-///   - Background/foreground advertising limits differ by Android OEM.
-///   - Some chipsets cap simultaneous GATT server connections low (often 1-4),
-///     which directly limits how many peers can sync with this device at once.
-///   - iOS background BLE peripheral mode is heavily restricted by the OS;
-///     this MVP targets Android only per the brief, which avoids that problem.
 class BlePeripheralService {
   static final BlePeripheralService instance = BlePeripheralService._internal();
   BlePeripheralService._internal();
@@ -61,7 +49,6 @@ class BlePeripheralService {
     _manager!.characteristicWriteRequested.listen((event) {
       final value = event.request.value;
       if (value.isEmpty) {
-        // End-of-message marker from the writer.
         if (_incomingBuffer.isNotEmpty) {
           _incomingPayloads.add(Uint8List.fromList(_incomingBuffer));
           _incomingBuffer.clear();
@@ -80,9 +67,6 @@ class BlePeripheralService {
     _advertising = true;
   }
 
-  /// Sends a response payload back to a connected central, chunked the
-  /// same way as the central->peripheral write path, terminated by an
-  /// empty notify.
   Future<void> sendResponse(Central central, Uint8List payload) async {
     final characteristic = _characteristic;
     final manager = _manager;
@@ -91,16 +75,16 @@ class BlePeripheralService {
     const chunkSize = 180;
     for (var i = 0; i < payload.length; i += chunkSize) {
       final end = (i + chunkSize < payload.length) ? i + chunkSize : payload.length;
-      await manager.notifyCharacteristicValue(
-        central,
+      await manager.writeCharacteristic(
         characteristic,
         value: payload.sublist(i, end),
+        central: central,
       );
     }
-    await manager.notifyCharacteristicValue(
-      central,
+    await manager.writeCharacteristic(
       characteristic,
       value: Uint8List(0),
+      central: central,
     );
   }
 
@@ -112,4 +96,4 @@ class BlePeripheralService {
   void dispose() {
     _incomingPayloads.close();
   }
-}
+} 
