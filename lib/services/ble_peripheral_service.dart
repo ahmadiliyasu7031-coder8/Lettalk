@@ -75,16 +75,16 @@ class BlePeripheralService {
     const chunkSize = 180;
     for (var i = 0; i < payload.length; i += chunkSize) {
       final end = (i + chunkSize < payload.length) ? i + chunkSize : payload.length;
-      await manager.writeCharacteristic(
+      await manager.notifyCharacteristic(
+        central,
         characteristic,
         value: payload.sublist(i, end),
-        central: central,
       );
     }
-    await manager.writeCharacteristic(
+    await manager.notifyCharacteristic(
+      central,
       characteristic,
       value: Uint8List(0),
-      central: central,
     );
   }
 
@@ -96,4 +96,4 @@ class BlePeripheralService {
   void dispose() {
     _incomingPayloads.close();
   }
-} 
+}
