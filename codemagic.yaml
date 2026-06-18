@@ -25,12 +25,6 @@ workflows:
         script: |
           flutter pub get
 
-      - name: DIAGNOSTIC - print actual installed PeripheralManager API
-        script: |
-          echo "===== peripheral_manager.dart (platform interface) ====="
-          find "$HOME/.pub-cache" -path "*bluetooth_low_energy_platform_interface*/src/peripheral_manager.dart" -exec cat {} \;
-          echo "===== gatt_characteristic.dart (or similar) ====="
-          find "$HOME/.pub-cache" -path "*bluetooth_low_energy_platform_interface*/src/*characteristic*" -exec cat {} \;
 
       - name: Build release APK
         script: |
