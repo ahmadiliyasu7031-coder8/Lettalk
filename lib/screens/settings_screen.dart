@@ -203,12 +203,60 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 16),
           const _SectionLabel('About'),
-          const ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.info_outline, color: AppColors.textPrimary),
-            title: Text('Lettalk', style: TextStyle(color: AppColors.textPrimary)),
-            subtitle: Text('People Are The Network.\nVersion 1.0 (MVP)',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(12)),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, color: AppColors.primaryGreen, size: 20),
+                    SizedBox(width: 8),
+                    Text('Lettalk',
+                        style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 15)),
+                  ],
+                ),
+                SizedBox(height: 4),
+                Text('People Are The Network. Version 1.0 (MVP)',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                SizedBox(height: 16),
+                Text('ABOUT THE CREATOR',
+                    style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.6)),
+                SizedBox(height: 8),
+                Text(
+                  'Ahmad Iliyasu was born in Babura, Babura Local Government Area, '
+                  'Jigawa State, Nigeria. He studies Software Engineering at the '
+                  'Federal University of Technology, Babura.',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 13, height: 1.4),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  '"If the whole world is looking south, turn and look north — '
+                  'you\'ll discover many things others have missed."',
+                  style: TextStyle(
+                      color: AppColors.primaryGreen,
+                      fontSize: 13,
+                      fontStyle: FontStyle.italic,
+                      height: 1.4),
+                ),
+                SizedBox(height: 4),
+                Text('— a saying shared by his friend Zakiyu Abdulkarim',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                SizedBox(height: 12),
+                Text('With thanks to his advisor, Mustapha Lawan.',
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                SizedBox(height: 16),
+                Text('Ahmadiliyasubabura@gmail.com',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                SizedBox(height: 2),
+                Text('07083324469', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ],
+            ),
           ),
           const SizedBox(height: 32),
           SizedBox(
@@ -244,4 +292,4 @@ class _SectionLabel extends StatelessWidget {
       ),
     );
   }
-}
+} 
