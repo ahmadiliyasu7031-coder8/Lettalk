@@ -17,6 +17,7 @@ class SplashScreen extends ConsumerStatefulWidget {
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
   double _progress = 0.0;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -25,31 +26,41 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _initialize() async {
-    // Cosmetic progress bar driving "Initializing Uranium Network…",
-    // while the real async work (identity lookup + permissions) runs
-    // underneath it.
-    final progressTimer = Stream.periodic(const Duration(milliseconds: 60), (i) => i)
-        .take(20)
-        .listen((i) {
-      if (mounted) setState(() => _progress = (i + 1) / 20);
-    });
+    setState(() => _errorMessage = null);
+    try {
+      final progressTimer = Stream.periodic(const Duration(milliseconds: 60), (i) => i)
+          .take(20)
+          .listen((i) {
+        if (mounted) setState(() => _progress = (i + 1) / 20);
+      });
 
-    final hasIdentity = await ref.read(identityProvider.notifier).hasIdentity();
-    await PermissionService.requestAll();
+      final hasIdentity = await ref
+          .read(identityProvider.notifier)
+          .hasIdentity()
+          .timeout(const Duration(seconds: 20));
 
-    if (hasIdentity) {
-      await BackgroundRelayService().initializeAndStart();
+      await PermissionService.requestAll().timeout(const Duration(seconds: 20));
+
+      if (hasIdentity) {
+        await BackgroundRelayService().initializeAndStart().timeout(const Duration(seconds: 20));
+      }
+
+      await Future.delayed(const Duration(milliseconds: 1200));
+      await progressTimer.asFuture<void>().catchError((_) {});
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => hasIdentity ? const HomeScreen() : const CreateProfileScreen(),
+        ),
+      );
+    } catch (e, stack) {
+      // ignore: avoid_print
+      print('Lettalk startup error: $e\n$stack');
+      if (mounted) {
+        setState(() => _errorMessage = e.toString());
+      }
     }
-
-    await Future.delayed(const Duration(milliseconds: 1200));
-    await progressTimer.asFuture<void>().catchError((_) {});
-
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => hasIdentity ? const HomeScreen() : const CreateProfileScreen(),
-      ),
-    );
   }
 
   @override
@@ -96,25 +107,59 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
               ),
-              const SizedBox(height: 48),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: _progress,
-                  minHeight: 6,
-                  backgroundColor: AppColors.surface,
-                  color: AppColors.primaryGreen,
-                ),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               const Text(
-                'Initializing Uranium Network…',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                'by Ahmad Iliyasu Babura',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
               ),
+              const SizedBox(height: 48),
+              if (_errorMessage == null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: _progress,
+                    minHeight: 6,
+                    backgroundColor: AppColors.surface,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Initializing Uranium Network…',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ] else ...[
+                const Icon(Icons.error_outline, color: AppColors.statusBad, size: 32),
+                const SizedBox(height: 12),
+                const Text(
+                  'Startup failed',
+                  style: TextStyle(color: AppColors.statusBad, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() => _progress = 0.0);
+                    _initialize();
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
   }
-}
+} 
