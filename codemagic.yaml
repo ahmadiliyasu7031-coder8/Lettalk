@@ -25,6 +25,13 @@ workflows:
         script: |
           flutter pub get
 
+      - name: DIAGNOSTIC - print actual installed PeripheralManager API
+        script: |
+          echo "===== peripheral_manager.dart (platform interface) ====="
+          find "$HOME/.pub-cache" -path "*bluetooth_low_energy_platform_interface*/src/peripheral_manager.dart" -exec cat {} \;
+          echo "===== gatt_characteristic.dart (or similar) ====="
+          find "$HOME/.pub-cache" -path "*bluetooth_low_energy_platform_interface*/src/*characteristic*" -exec cat {} \;
+
       - name: Build release APK
         script: |
           flutter build apk --release
@@ -35,7 +42,7 @@ workflows:
     publishing:
       email:
         recipients:
-          - you@example.com # replace with your email to get notified + the APK link
+          - you@example.com
         notify:
           success: true
-          failure: true
+          failure: true 
