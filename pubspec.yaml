@@ -37,7 +37,7 @@ dependencies:
 
   # Permissions (BLE, notifications)
   permission_handler: ^11.1.0
-  app_settings: ^5.1.1
+  app_settings: ^7.0.0
 
   # IDs / UUIDs for Lettalk ID + message IDs
   uuid: ^4.2.2
