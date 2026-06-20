@@ -169,6 +169,7 @@ class _QrScanScreenState extends State<_QrScanScreen> {
   _ScanState _state = _ScanState.checking;
   String? _cameraErrorMessage;
   MobileScannerController? _controller;
+  int _cameraAttempt = 0;
 
   @override
   void initState() {
@@ -188,6 +189,7 @@ class _QrScanScreenState extends State<_QrScanScreen> {
     if (!mounted) return;
 
     if (status.isGranted) {
+      _cameraAttempt = 0;
       _controller = MobileScannerController();
       setState(() => _state = _ScanState.ready);
     } else {
@@ -196,10 +198,20 @@ class _QrScanScreenState extends State<_QrScanScreen> {
   }
 
   void _onCameraError(BuildContext context, MobileScannerException error) {
-    // mobile_scanner's own errorBuilder hook — this is what stops a
-    // camera-init failure from crashing the whole app with a raw
-    // native exception, and shows a retryable message instead.
     if (!mounted) return;
+
+    // Some devices have a flaky first CameraX initialization that
+    // succeeds on a second attempt — retry once automatically before
+    // bothering the user with an error screen.
+    if (_cameraAttempt < 1) {
+      _cameraAttempt++;
+      _controller?.dispose();
+      setState(() {
+        _controller = MobileScannerController();
+      });
+      return;
+    }
+
     setState(() {
       _state = _ScanState.cameraError;
       _cameraErrorMessage = error.toString();
