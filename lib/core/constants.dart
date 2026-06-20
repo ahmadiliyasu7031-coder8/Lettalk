@@ -43,6 +43,8 @@ class MessageStatus {
   static const String relayed = "relayed";
   static const String delivered = "delivered";
   static const String killed = "killed";
+  static const String waiting = "waiting"; // outbox: recipient's public key not yet known
+  static const String expired = "expired"; // outbox: 7-day TTL passed before resolving
 }
 
 class AppTheme {
