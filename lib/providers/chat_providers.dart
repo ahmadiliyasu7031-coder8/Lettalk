@@ -2,13 +2,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/contact_repository.dart';
 import '../database/message_repository.dart';
+import '../database/outbox_repository.dart';
 import '../models/contact.dart';
-import '../models/message.dart';
+import '../models/thread_item.dart';
 import '../services/uranium_protocol.dart';
 import 'identity_provider.dart';
 
 final contactRepositoryProvider = Provider<ContactRepository>((ref) => ContactRepository());
 final messageRepositoryProvider = Provider<MessageRepository>((ref) => MessageRepository());
+final outboxRepositoryProvider = Provider<OutboxRepository>((ref) => OutboxRepository());
 
 final contactsProvider = AsyncNotifierProvider<ContactsNotifier, List<Contact>>(
   ContactsNotifier.new,
@@ -43,18 +45,43 @@ class ContactsNotifier extends AsyncNotifier<List<Contact>> {
   }
 }
 
-/// Latest message per conversation, for the Chats home screen list.
-final conversationsProvider = AsyncNotifierProvider<ConversationsNotifier, List<LettalkMessage>>(
+/// Latest item (real message OR outbox draft) per conversation, for the
+/// Chats home screen list. A conversation the user just started by
+/// messaging an unknown ID shows up immediately via its outbox entry.
+final conversationsProvider = AsyncNotifierProvider<ConversationsNotifier, List<ThreadItem>>(
   ConversationsNotifier.new,
 );
 
-class ConversationsNotifier extends AsyncNotifier<List<LettalkMessage>> {
+class ConversationsNotifier extends AsyncNotifier<List<ThreadItem>> {
   @override
-  Future<List<LettalkMessage>> build() async {
+  Future<List<ThreadItem>> build() async {
     final identity = await ref.watch(identityProvider.future);
     if (identity == null) return [];
-    final repo = ref.read(messageRepositoryProvider);
-    return repo.getLatestPerConversation(identity.lettalkId);
+    final messageRepo = ref.read(messageRepositoryProvider);
+    final outboxRepo = ref.read(outboxRepositoryProvider);
+
+    final latestMessages = await messageRepo.getLatestPerConversation(identity.lettalkId);
+    final latestOutbox = await outboxRepo.getLatestPerConversation(identity.lettalkId);
+
+    // For any conversation that has BOTH a real message and an outbox
+    // draft, keep only whichever is more recent so each thread shows
+    // exactly one entry in the list.
+    final byPartner = <String, ThreadItem>{};
+    for (final m in latestMessages) {
+      final partner = m.senderId == identity.lettalkId ? m.recipientId : m.senderId;
+      byPartner[partner] = RealMessageItem(m);
+    }
+    for (final o in latestOutbox) {
+      final partner = o.senderId == identity.lettalkId ? o.recipientId : o.senderId;
+      final existing = byPartner[partner];
+      if (existing == null || o.createdAt > existing.createdAt) {
+        byPartner[partner] = OutboxItem(o);
+      }
+    }
+
+    final items = byPartner.values.toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return items;
   }
 
   Future<void> refresh() async {
@@ -73,29 +100,35 @@ final messageStatsProvider = FutureProvider.autoDispose<({int sent, int received
   return (sent: sent, received: received);
 });
 
-/// Full thread with one contact, for the Chat screen.
+/// Full thread with one contact, merging real messages and outbox
+/// drafts in chronological order, for the Chat screen.
 final conversationThreadProvider =
-    AsyncNotifierProvider.family<ConversationThreadNotifier, List<LettalkMessage>, String>(
+    AsyncNotifierProvider.family<ConversationThreadNotifier, List<ThreadItem>, String>(
   ConversationThreadNotifier.new,
 );
 
-class ConversationThreadNotifier extends FamilyAsyncNotifier<List<LettalkMessage>, String> {
+class ConversationThreadNotifier extends FamilyAsyncNotifier<List<ThreadItem>, String> {
   @override
-  Future<List<LettalkMessage>> build(String otherLettalkId) async {
+  Future<List<ThreadItem>> build(String otherLettalkId) async {
     final identity = await ref.watch(identityProvider.future);
     if (identity == null) return [];
-    final repo = ref.read(messageRepositoryProvider);
-    return repo.getConversation(identity.lettalkId, otherLettalkId);
+    final messageRepo = ref.read(messageRepositoryProvider);
+    final outboxRepo = ref.read(outboxRepositoryProvider);
+
+    final messages = await messageRepo.getConversation(identity.lettalkId, otherLettalkId);
+    final outbox = await outboxRepo.getForConversation(identity.lettalkId, otherLettalkId);
+    return mergeAndSort(messages, outbox);
   }
 
   Future<void> sendMessage(String plaintext) async {
+    // Never throws on an unknown recipient — the engine queues to the
+    // outbox automatically. The user always sees their message appear.
     await UraniumProtocolEngine.instance.sendMessage(
       recipientId: arg,
       plaintext: plaintext,
     );
     ref.invalidateSelf();
     await future;
-    // Conversation list on Home also needs to reflect the new message.
     ref.invalidate(conversationsProvider);
   }
 
