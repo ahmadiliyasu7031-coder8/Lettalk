@@ -2,36 +2,29 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 
 import '../core/constants.dart';
-import '../models/message.dart';
 
+/// Generic bubble — takes plain display values rather than a model
+/// directly, so it can render both real (encrypted) messages and
+/// outbox (waiting) drafts identically from the caller's point of view.
 class MessageBubble extends StatelessWidget {
-  final LettalkMessage message;
   final bool isOutgoing;
   final String displayText;
+  final int createdAt;
+  final String statusLabel;
+  final Color statusColor;
 
   const MessageBubble({
     super.key,
-    required this.message,
     required this.isOutgoing,
     required this.displayText,
+    required this.createdAt,
+    required this.statusLabel,
+    this.statusColor = AppColors.primaryGreen,
   });
-
-  String get _statusLabel {
-    switch (message.status) {
-      case MessageStatus.sent:
-        return '✓ Sent';
-      case MessageStatus.relayed:
-        return '✓ Relayed';
-      case MessageStatus.delivered:
-        return '✓✓ Delivered';
-      default:
-        return '';
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final time = DateTime.fromMillisecondsSinceEpoch(message.createdAt);
+    final time = DateTime.fromMillisecondsSinceEpoch(createdAt);
     final timeLabel = DateFormat.jm().format(time);
 
     return Align(
@@ -58,10 +51,9 @@ class MessageBubble extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(timeLabel, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                if (isOutgoing) ...[
+                if (isOutgoing && statusLabel.isNotEmpty) ...[
                   const SizedBox(width: 6),
-                  Text(_statusLabel,
-                      style: const TextStyle(color: AppColors.primaryGreen, fontSize: 11)),
+                  Text(statusLabel, style: TextStyle(color: statusColor, fontSize: 11)),
                 ],
               ],
             ),
