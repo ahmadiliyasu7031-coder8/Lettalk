@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
 import '../database/identity_repository.dart';
 import '../database/message_repository.dart';
+import '../database/outbox_repository.dart';
 import '../models/contact.dart';
-import '../models/message.dart';
+import '../models/thread_item.dart';
 import '../providers/chat_providers.dart';
 import '../providers/identity_provider.dart';
 import '../services/encryption_service.dart';
@@ -31,6 +32,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
+      // Never throws on an unknown recipient — it queues to the outbox
+      // and the UI shows "Waiting for Recipient" immediately.
       await ref.read(conversationThreadProvider(widget.contact.lettalkId).notifier).sendMessage(text);
       _inputController.clear();
       await Future.delayed(const Duration(milliseconds: 100));
@@ -97,9 +100,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     if (confirmed != true) return;
 
-    final messages = await MessageRepository().getConversation(identity.lettalkId, widget.contact.lettalkId);
+    final messageRepo = MessageRepository();
+    final outboxRepo = OutboxRepository();
+    final messages = await messageRepo.getConversation(identity.lettalkId, widget.contact.lettalkId);
     for (final m in messages) {
-      await MessageRepository().deleteMessage(m.messageId);
+      await messageRepo.deleteMessage(m.messageId);
+    }
+    final outbox = await outboxRepo.getForConversation(identity.lettalkId, widget.contact.lettalkId);
+    for (final o in outbox) {
+      await outboxRepo.remove(o.messageId);
     }
     ref.invalidate(conversationThreadProvider(widget.contact.lettalkId));
     ref.invalidate(conversationsProvider);
@@ -126,16 +135,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               data: (identity) {
                 if (identity == null) return const SizedBox.shrink();
                 return threadAsync.when(
-                  data: (messages) => _DecryptedThread(
-                    messages: messages,
+                  data: (items) => _DecryptedThread(
+                    items: items,
                     myId: identity.lettalkId,
                     contact: widget.contact,
                     scrollController: _scrollController,
                   ),
                   loading: () =>
                       const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen)),
-                  error: (e, _) =>
-                      const Center(child: Text('Failed to load thread', style: TextStyle(color: AppColors.statusBad))),
+                  error: (e, _) => const Center(
+                      child: Text('Failed to load thread', style: TextStyle(color: AppColors.statusBad))),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen)),
@@ -178,18 +187,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-/// Decrypts each message in the thread for display. Both directions use
-/// the same shared secret — ECDH(myPrivateKey, theirPublicKey) — since
-/// X25519 key agreement is symmetric, so this works for sent and
-/// received messages alike.
+/// Decrypts each real message in the thread for display, and shows
+/// outbox drafts as plaintext directly (they were never encrypted —
+/// there's nothing to decrypt yet). Both directions of a real message
+/// use the same shared secret — ECDH(myPrivateKey, theirPublicKey) —
+/// since X25519 key agreement is symmetric.
 class _DecryptedThread extends StatefulWidget {
-  final List<LettalkMessage> messages;
+  final List<ThreadItem> items;
   final String myId;
   final Contact contact;
   final ScrollController scrollController;
 
   const _DecryptedThread({
-    required this.messages,
+    required this.items,
     required this.myId,
     required this.contact,
     required this.scrollController,
@@ -212,19 +222,18 @@ class _DecryptedThreadState extends State<_DecryptedThread> {
   @override
   void didUpdateWidget(covariant _DecryptedThread oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.messages.length != widget.messages.length) {
+    if (oldWidget.items.length != widget.items.length) {
       _decryptAll();
     }
   }
 
   Future<void> _decryptAll() async {
-    if (widget.contact.publicKey == null) {
+    final realMessages = widget.items.whereType<RealMessageItem>().toList();
+    if (realMessages.isEmpty || widget.contact.publicKey == null) {
       setState(() => _loading = false);
       return;
     }
-    // Looked up directly rather than via Riverpod since this widget is a
-    // plain State (decryption is a one-shot side effect, not something
-    // that needs to rebuild reactively on identity changes mid-thread).
+
     final identityRepo = IdentityRepository();
     final identity = await identityRepo.getIdentity();
     if (identity == null) {
@@ -239,7 +248,8 @@ class _DecryptedThreadState extends State<_DecryptedThread> {
     );
 
     final results = <String, String>{};
-    for (final m in widget.messages) {
+    for (final item in realMessages) {
+      final m = item.message;
       if (m.content.isEmpty) continue;
       try {
         results[m.messageId] =
@@ -266,24 +276,42 @@ class _DecryptedThreadState extends State<_DecryptedThread> {
     if (_loading) {
       return const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen));
     }
-    if (widget.messages.isEmpty) {
+    if (widget.items.isEmpty) {
       return const Center(
-        child: Text('Say hello — your message goes out over the mesh.',
+        child: Text('Say hello — your message goes out over the mesh, even if you\'ve never met yet.',
+            textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textSecondary)),
       );
     }
     return ListView.builder(
       controller: widget.scrollController,
       padding: const EdgeInsets.symmetric(vertical: 12),
-      itemCount: widget.messages.length,
+      itemCount: widget.items.length,
       itemBuilder: (context, index) {
-        final m = widget.messages[index];
-        final isOutgoing = m.senderId == widget.myId;
-        return MessageBubble(
-          message: m,
-          isOutgoing: isOutgoing,
-          displayText: _decrypted[m.messageId] ?? '[unable to decrypt]',
-        );
+        final item = widget.items[index];
+        final isOutgoing = item.senderId == widget.myId;
+
+        return switch (item) {
+          RealMessageItem() => MessageBubble(
+              isOutgoing: isOutgoing,
+              displayText: _decrypted[item.messageId] ?? '[unable to decrypt]',
+              createdAt: item.createdAt,
+              statusLabel: switch (item.message.status) {
+                'sent' => '✓ Sent',
+                'relayed' => '✓ Relayed',
+                'delivered' => '✓✓ Delivered',
+                _ => '',
+              },
+              statusColor: AppColors.primaryGreen,
+            ),
+          OutboxItem() => MessageBubble(
+              isOutgoing: isOutgoing,
+              displayText: item.outbox.plaintextContent,
+              createdAt: item.createdAt,
+              statusLabel: '⏳ Waiting for Recipient',
+              statusColor: AppColors.statusWeak,
+            ),
+        };
       },
     );
   }

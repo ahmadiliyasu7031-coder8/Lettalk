@@ -67,23 +67,18 @@ class _NewMessageScreenState extends ConsumerState<NewMessageScreen> {
     });
 
     try {
-      final contactsRepo = ref.read(contactRepositoryProvider);
-      var contact = await contactsRepo.getContact(id);
-      if (contact == null) {
-        setState(() {
-          _sending = false;
-          _error =
-              'No contact on file for $id yet. Add them first (QR / manual exchange) so their public key is known.';
-        });
-        return;
-      }
-
       final thread = ref.read(conversationThreadProvider(id).notifier);
       await thread.sendMessage(text);
 
       if (!mounted) return;
+      final contactsRepo = ref.read(contactRepositoryProvider);
+      final contact = await contactsRepo.getContact(id);
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => ChatScreen(contact: contact!)),
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            contact: contact ?? Contact(lettalkId: id, username: id, lastSeen: 0),
+          ),
+        ),
       );
     } catch (e) {
       setState(() {

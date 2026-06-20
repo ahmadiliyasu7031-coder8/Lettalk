@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants.dart';
 import '../models/contact.dart';
+import '../models/thread_item.dart';
 import '../providers/chat_providers.dart';
 import '../providers/identity_provider.dart';
 import '../widgets/conversation_tile.dart';
@@ -53,13 +54,14 @@ class ChatsTab extends ConsumerWidget {
             );
           }
           return conversationsAsync.when(
-            data: (messages) {
-              if (messages.isEmpty) {
+            data: (items) {
+              if (items.isEmpty) {
                 return const Center(
                   child: Padding(
                     padding: EdgeInsets.all(32),
                     child: Text(
-                      'No chats yet. Tap the button below to message someone using their Lettalk ID.',
+                      'No chats yet. Tap the button below to message someone using their Lettalk ID — '
+                      'you don\'t need to know them yet, Lettalk will find them.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.textSecondary),
                     ),
@@ -68,47 +70,58 @@ class ChatsTab extends ConsumerWidget {
               }
               final contacts = contactsAsync.value ?? <Contact>[];
               return ListView.separated(
-                itemCount: messages.length,
-                separatorBuilder: (_, __) =>
-                    const Divider(height: 1, color: AppColors.surface),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.surface),
                 itemBuilder: (context, index) {
-                  final message = messages[index];
-                  final isOutgoing = message.senderId == identity.lettalkId;
-                  final otherId = isOutgoing ? message.recipientId : message.senderId;
+                  final item = items[index];
+                  final isOutgoing = item.senderId == identity.lettalkId;
+                  final otherId = isOutgoing ? item.recipientId : item.senderId;
                   final contact = contacts.firstWhere(
                     (c) => c.lettalkId == otherId,
-                    orElse: () => Contact(
-                      lettalkId: otherId,
-                      username: otherId,
-                      lastSeen: 0,
-                    ),
+                    orElse: () => Contact(lettalkId: otherId, username: otherId, lastSeen: 0),
                   );
+
+                  final (preview, statusLabel, statusColor) = switch (item) {
+                    RealMessageItem() => (
+                        '[encrypted message]',
+                        switch (item.message.status) {
+                          'sent' => '✓ Sent',
+                          'relayed' => '✓ Relayed',
+                          'delivered' => '✓✓ Delivered',
+                          _ => '',
+                        },
+                        AppColors.primaryGreen,
+                      ),
+                    OutboxItem() => (
+                        item.outbox.plaintextContent,
+                        '⏳ Waiting for Recipient',
+                        AppColors.statusWeak,
+                      ),
+                  };
+
                   return ConversationTile(
-                    contact: contact,
-                    lastMessage: message,
+                    username: contact.username,
+                    previewText: preview,
+                    statusLabel: statusLabel,
+                    statusColor: statusColor,
+                    createdAt: item.createdAt,
                     isOutgoing: isOutgoing,
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ChatScreen(contact: contact),
-                        ),
+                        MaterialPageRoute(builder: (_) => ChatScreen(contact: contact)),
                       );
                     },
                   );
                 },
               );
             },
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryGreen),
-            ),
-            error: (e, _) => Center(
-              child: Text('Failed to load chats', style: const TextStyle(color: AppColors.statusBad)),
+            loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen)),
+            error: (e, _) => const Center(
+              child: Text('Failed to load chats', style: TextStyle(color: AppColors.statusBad)),
             ),
           );
         },
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primaryGreen),
-        ),
+        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen)),
         error: (e, _) => const Center(
           child: Text('Failed to load identity', style: TextStyle(color: AppColors.statusBad)),
         ),
