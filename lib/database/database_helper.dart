@@ -102,6 +102,23 @@ class DatabaseHelper {
         value TEXT
       );
     ''');
+
+    // Outbox — messages composed before the recipient's public key was
+    // known. Stored in PLAINTEXT, local to this device only. Never
+    // exchanged with peers in this form. Once the recipient's public
+    // key becomes known (direct encounter or identity gossip), these
+    // get encrypted and promoted into the `messages` table.
+    await db.execute('''
+      CREATE TABLE outbox (
+        message_id TEXT PRIMARY KEY,
+        sender_id TEXT,
+        recipient_id TEXT,
+        plaintext_content TEXT,
+        created_at INTEGER,
+        expires_at INTEGER,
+        status TEXT DEFAULT 'waiting'
+      );
+    ''');
   }
 
   Future<void> close() async {
