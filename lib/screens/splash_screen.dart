@@ -72,6 +72,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// Bluetooth Required screen as an interstitial — but "Continue Offline"
   /// always gets them into Home regardless.
   Future<void> _goToHomeOrBluetoothCheck() async {
+    // Returning users skip the onboarding screens entirely, so this is
+    // the only place that (re)requests anything still missing — e.g.
+    // bluetoothAdvertise, which an existing install from before this
+    // fix would never have been asked to grant.
+    try {
+      await PermissionService.ensureAllGranted().timeout(const Duration(seconds: 8));
+    } catch (_) {}
+
     bool btOn = false;
     try {
       btOn = await PermissionService.isBluetoothOn().timeout(const Duration(seconds: 3));
